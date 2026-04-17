@@ -1,0 +1,35 @@
+services:
+  gooseflight-bot:
+    build: .
+    container_name: gooseflight-bot
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_token
+      AUTHORIZED_USER_ID: ${AUTHORIZED_USER_ID}
+      GOOSED_URL: http://goosed:3004
+      GOOSE_SECRET_FILE: /run/secrets/goose_secret
+      WHISPER_BACKEND: openai
+      OPENAI_API_KEY_FILE: /run/secrets/openai_key
+      LOG_LEVEL: INFO
+      TZ: America/Santiago
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data
+      - /workspace:/workspace
+    secrets:
+      - telegram_token
+      - goose_secret
+      - openai_key
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/data/healthz') else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+secrets:
+  telegram_token:
+    file: ./secrets/telegram_token.txt
+  goose_secret:
+    file: ./secrets/goose_secret.txt
+  openai_key:
+    file: ./secrets/openai_key.txt
