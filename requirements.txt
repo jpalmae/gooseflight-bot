@@ -1,3 +1,6 @@
+# Markdown parsing
+mistune>=3.0.0
+
 # Bot framework
 aiogram>=3.13.0
 
