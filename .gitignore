@@ -1,10 +1,42 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
 .env
+.env.*
+
+# Data
 data/
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Logs
+bot.log
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing / linting
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
-bot.log
+htmlcov/
+.coverage
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+secrets/

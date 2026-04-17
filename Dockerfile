@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
 COPY migrations/ ./migrations/
+COPY alembic.ini .
 
 RUN mkdir -p /data/audio /data/uploads && \
     useradd -r -u 1000 bot && \
