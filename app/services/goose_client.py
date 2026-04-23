@@ -13,6 +13,31 @@ from app.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+async def _read_lines_unlimited(
+    stream: asyncio.StreamReader,
+) -> AsyncIterator[str]:
+    """Read lines from an asyncio StreamReader without the 64KB limit.
+
+    The default ``async for line in stream`` uses ``readline()`` which raises
+    ``ValueError: Separator is found, but chunk is longer than limit`` when a
+    single line exceeds 64 KiB.  This helper reads chunks manually and yields
+    complete lines regardless of size.
+    """
+    buf = bytearray()
+    while True:
+        # Read in 64KB chunks (but accumulate without limit)
+        chunk = await stream.read(65536)
+        if not chunk:
+            # EOF — yield any remaining data
+            if buf:
+                yield buf.decode(errors="replace")
+            break
+        buf.extend(chunk)
+        while b"\n" in buf:
+            line, buf = buf.split(b"\n", 1)
+            yield line.decode(errors="replace")
+
+
 class GooseClient:
     """Interface to Goose via `goose run` subprocess.
 
@@ -80,8 +105,8 @@ class GooseClient:
         self._processes[session_name] = proc
 
         try:
-            async for line in proc.stdout:
-                line_str = line.decode().strip()
+            async for line in _read_lines_unlimited(proc.stdout):
+                line_str = line.strip()
                 if not line_str:
                     continue
                 try:

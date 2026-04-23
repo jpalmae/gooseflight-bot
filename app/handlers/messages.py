@@ -13,7 +13,7 @@ from app.logging_config import get_logger
 from app.services.goose_client import GooseClient
 from app.services.session_manager import SessionManager
 from app.services.stream_renderer import StreamRenderer
-from app.utils.markdown import markdown_to_tg_html, split_message
+from app.utils.markdown import markdown_to_tg_html
 
 logger = get_logger(__name__)
 
@@ -68,52 +68,65 @@ async def handle_text(
                         token = block.get("text", "")
                         full_text += token
                         got_response = True
-                        await renderer.update(full_text)
+                        try:
+                            await renderer.update(full_text)
+                        except Exception as render_err:
+                            # Rendering errors should NOT kill the stream
+                            logger.warning(
+                                "update_error",
+                                error=str(render_err),
+                                session_name=session_name,
+                            )
 
                     elif block_type == "thinking":
                         # Thinking tokens — skip for display
                         pass
 
             elif event_type == "complete":
-                await renderer.finalize()
+                try:
+                    await renderer.finalize()
+                except Exception as render_err:
+                    logger.warning("finalize_error", error=str(render_err))
                 break
 
             elif event_type == "error":
                 err = event.get("error", "Error desconocido")
-                await renderer.finalize()
+                try:
+                    await renderer.finalize()
+                except Exception:
+                    pass
                 await message.answer(f"❌ {err}")
                 break
 
     except asyncio.CancelledError:
-        await renderer.finalize()
+        try:
+            await renderer.finalize()
+        except Exception:
+            pass
         return
     except Exception as e:
         logger.error("stream_error", error=str(e), session_name=session_name)
-        await renderer.finalize()
-        await message.answer(f"❌ Error: {e}")
+        try:
+            await renderer.finalize()
+        except Exception:
+            pass
+        # Send error to user, but don't show raw Telegram API errors
+        err_msg = str(e)
+        if "separator" in err_msg.lower() or "chunk" in err_msg.lower():
+            await message.answer("⚠️ Mensaje muy largo — parte de la respuesta se perdió. Puedo continuar si me escribes de nuevo.")
+        else:
+            await message.answer(f"❌ Error: {e}")
         return
+
+    # Safety net: ensure finalize is called (no-op if already called via complete/error)
+    if not renderer._finalized:
+        try:
+            await renderer.finalize()
+        except Exception:
+            pass
 
     if got_response:
         session_mgr.mark_created(chat_id)
-
-    # Final message with HTML rendering
-    if full_text.strip():
-        html = markdown_to_tg_html(full_text)
-        chunks = split_message(html, max_len=4000)
-        try:
-            await message.bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=placeholder.message_id,
-                text=chunks[0],
-                parse_mode="HTML",
-            )
-        except Exception:
-            pass
-        for chunk in chunks[1:]:
-            try:
-                await message.answer(chunk, parse_mode="HTML")
-            except Exception:
-                await message.answer(chunk)
 
     elapsed = time.monotonic() - start_time
     if elapsed > settings.completion_notif_threshold_seconds:

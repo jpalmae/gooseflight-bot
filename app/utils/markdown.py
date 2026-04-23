@@ -184,8 +184,12 @@ def markdown_to_tg_html(md: str) -> str:
     return _md(md).strip()
 
 
-def split_message(text: str, max_len: int = 4000) -> list[str]:
-    """Split text into chunks ≤ max_len, respecting paragraph boundaries."""
+def split_message(text: str, max_len: int = 3500) -> list[str]:
+    """Split text into chunks ≤ max_len, respecting paragraph boundaries.
+
+    Default max_len=3500 to leave headroom for HTML tag overhead
+    (Telegram limit is 4096 chars including HTML tags).
+    """
     if len(text) <= max_len:
         return [text]
 
@@ -194,9 +198,10 @@ def split_message(text: str, max_len: int = 4000) -> list[str]:
 
     while len(remaining) > max_len:
         cut = remaining.rfind("\n\n", 0, max_len)
-        if cut == -1:
+        if cut <= 0:
             cut = remaining.rfind("\n", 0, max_len)
-        if cut == -1:
+        if cut <= 0:
+            # No separator found — hard split at max_len
             cut = max_len
 
         before = remaining[:cut]
@@ -206,8 +211,15 @@ def split_message(text: str, max_len: int = 4000) -> list[str]:
             if last_open > 0:
                 cut = last_open
 
-        chunks.append(remaining[:cut])
-        remaining = remaining[cut:]
+        chunk = remaining[:cut]
+        # Skip empty chunks (prevents infinite loop)
+        if not chunk:
+            chunk = remaining[:max_len]
+            if not chunk:
+                break
+
+        chunks.append(chunk)
+        remaining = remaining[len(chunk):]
 
     if remaining:
         chunks.append(remaining)
