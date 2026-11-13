@@ -25,7 +25,7 @@ openai>=1.51.0
 
 # Utilities
 python-magic>=0.4.27
-structlog>=24.4.0
+structlog>=26.1.0
 
 # Dev
 pytest>=8.3.0
